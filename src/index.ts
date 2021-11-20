@@ -14,7 +14,7 @@ export function parse(buf: ArrayBuffer) {
   // https://github.com/nodejs/node/issues/39879
   const decoder = new TextDecoder();
 
-  const res: Record<string, unknown> = {};
+  const res: Record<string, string | number> = {};
 
   // header
   if (
@@ -55,6 +55,8 @@ export function parse(buf: ArrayBuffer) {
     } else if (type === T_INT) {
       v = view.getInt32(offset, true);
       offset += 4;
+    } else {
+      throw new Error("unknown type");
     }
 
     res[key] = v;

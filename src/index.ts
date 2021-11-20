@@ -8,7 +8,7 @@ const T_STRING = 0x80;
 const T_FLOAT = 0xfd;
 const T_INT = 0xfe;
 
-export function parse(buf: ArrayBuffer) {
+export function load(buf: ArrayBuffer) {
   const view = new DataView(buf);
   // TODO: TextDecoder seems to be slower than buffer at node.js
   // https://github.com/nodejs/node/issues/39879

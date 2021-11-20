@@ -10,6 +10,7 @@ const T_INT = 0xfe;
 
 export function parse(buf: Buffer) {
   const res: Record<string, unknown> = {};
+  let offset = 0;
 
   // header
   if (
@@ -19,35 +20,35 @@ export function parse(buf: Buffer) {
   ) {
     throw new Error("incorrect header");
   }
-  buf = buf.slice(16);
+  offset += 16;
 
-  while (buf.length > 0) {
-    const keyLen = buf.readUInt8();
-    buf = buf.slice(1);
+  while (buf.length > offset) {
+    const keyLen = buf.readUInt8(offset);
+    offset += 1;
 
-    const key = buf.slice(0, keyLen).toString();
-    buf = buf.slice(keyLen);
+    const key = buf.slice(offset, offset + keyLen).toString();
+    offset += keyLen;
 
-    const type = buf.readUInt8();
+    const type = buf.readUInt8(offset);
     // console.log(type.toString(16));
-    buf = buf.slice(1);
+    offset += 1;
 
     let v;
     if (type < T_STRING) {
-      v = buf.slice(0, type).toString();
-      buf = buf.slice(type);
+      v = buf.slice(offset, offset + type).toString();
+      offset += type;
     } else if (type === T_STRING) {
-      const valueLen = buf.readUInt32LE();
-      buf = buf.slice(4);
+      const valueLen = buf.readUInt32LE(offset);
+      offset += 4;
 
-      v = buf.slice(0, valueLen).toString();
-      buf = buf.slice(valueLen);
+      v = buf.slice(offset, offset + valueLen).toString();
+      offset += valueLen;
     } else if (type === T_FLOAT) {
-      v = buf.readFloatLE();
-      buf = buf.slice(4);
+      v = buf.readFloatLE(offset);
+      offset += 4;
     } else if (type === T_INT) {
-      v = buf.readInt32LE();
-      buf = buf.slice(4);
+      v = buf.readInt32LE(offset);
+      offset += 4;
     }
 
     res[key] = v;

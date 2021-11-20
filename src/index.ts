@@ -8,46 +8,52 @@ const T_STRING = 0x80;
 const T_FLOAT = 0xfd;
 const T_INT = 0xfe;
 
-export function parse(buf: Buffer) {
+export function parse(buf: ArrayBuffer) {
+  const view = new DataView(buf);
+  // TODO: TextDecoder seems to be slower than buffer at node.js
+  // https://github.com/nodejs/node/issues/39879
+  const decoder = new TextDecoder();
+
   const res: Record<string, unknown> = {};
-  let offset = 0;
 
   // header
   if (
-    buf.slice(0, 8).toString() !== HEADER ||
-    buf.readUInt32LE(8) !== V1 ||
-    buf.readUInt32LE(12) !== V2
+    // subarray is slower than slice
+    decoder.decode(buf.slice(0, 8)) !== HEADER ||
+    view.getUint32(8, true) !== V1 ||
+    view.getUint32(12, true) !== V2
   ) {
     throw new Error("incorrect header");
   }
-  offset += 16;
 
-  while (buf.length > offset) {
-    const keyLen = buf.readUInt8(offset);
+  let offset = 16;
+
+  while (buf.byteLength > offset) {
+    const keyLen = view.getUint8(offset);
     offset += 1;
 
-    const key = buf.slice(offset, offset + keyLen).toString();
+    const key = decoder.decode(buf.slice(offset, offset + keyLen));
     offset += keyLen;
 
-    const type = buf.readUInt8(offset);
+    const type = view.getUint8(offset);
     // console.log(type.toString(16));
     offset += 1;
 
     let v;
     if (type < T_STRING) {
-      v = buf.slice(offset, offset + type).toString();
+      v = decoder.decode(buf.slice(offset, offset + type));
       offset += type;
     } else if (type === T_STRING) {
-      const valueLen = buf.readUInt32LE(offset);
+      const valueLen = view.getUint32(offset, true);
       offset += 4;
 
-      v = buf.slice(offset, offset + valueLen).toString();
+      v = decoder.decode(buf.slice(offset, offset + valueLen));
       offset += valueLen;
     } else if (type === T_FLOAT) {
-      v = buf.readFloatLE(offset);
+      v = view.getFloat32(offset, true);
       offset += 4;
     } else if (type === T_INT) {
-      v = buf.readInt32LE(offset);
+      v = view.getInt32(offset, true);
       offset += 4;
     }
 
@@ -57,42 +63,53 @@ export function parse(buf: Buffer) {
   return res;
 }
 
+function merge(b0: ArrayBuffer, b1: ArrayBuffer): ArrayBuffer {
+  var tmp = new Uint8Array(b0.byteLength + b1.byteLength);
+  tmp.set(new Uint8Array(b0));
+  tmp.set(new Uint8Array(b1), b0.byteLength);
+  return tmp.buffer;
+}
+
 export function dump(value: Record<string, unknown>) {
-  let buf = Buffer.allocUnsafe(16);
+  const encoder = new TextEncoder();
+  let buf = new ArrayBuffer(16);
 
   // header
-  buf.write(HEADER);
-  buf.writeUInt32LE(V1, 8);
-  buf.writeUInt32LE(V2, 12);
+  new Uint8Array(buf).set(encoder.encode(HEADER));
+  const view = new DataView(buf);
+  view.setUint32(8, V1, true);
+  view.setUint32(12, V2, true);
 
   for (const [k, v] of Object.entries(value)) {
-    buf = Buffer.concat([buf, Buffer.from([k.length]), Buffer.from(k)]);
+    buf = merge(buf, Uint8Array.of(k.length).buffer);
+    buf = merge(buf, encoder.encode(k).buffer);
 
     if (typeof v === "string") {
       if (v.length < T_STRING) {
-        buf = Buffer.concat([buf, Buffer.from([v.length]), Buffer.from(v)]);
+        buf = merge(buf, Uint8Array.of(v.length).buffer);
+        buf = merge(buf, encoder.encode(v).buffer);
       } else {
-        const lenBuf = Buffer.allocUnsafe(4);
-        lenBuf.writeUInt32LE(v.length);
+        buf = merge(buf, Uint8Array.of(T_STRING).buffer);
 
-        buf = Buffer.concat([
-          buf,
-          Buffer.from([T_STRING]),
-          lenBuf,
-          Buffer.from(v),
-        ]);
+        const lenBuf = new ArrayBuffer(4);
+        new DataView(lenBuf).setUint32(0, v.length, true);
+        buf = merge(buf, lenBuf);
+
+        buf = merge(buf, encoder.encode(v).buffer);
       }
     } else if (typeof v === "number") {
       if (v % 1 === 0) {
-        const valueBuf = Buffer.allocUnsafe(4);
-        valueBuf.writeInt32LE(v);
+        buf = merge(buf, Uint8Array.of(T_INT));
 
-        buf = Buffer.concat([buf, Buffer.from([T_INT]), valueBuf]);
+        const vBuf = new ArrayBuffer(4);
+        new DataView(vBuf).setUint32(0, v, true);
+        buf = merge(buf, vBuf);
       } else {
-        const valueBuf = Buffer.allocUnsafe(4);
-        valueBuf.writeFloatLE(v);
+        buf = merge(buf, Uint8Array.of(T_FLOAT));
 
-        buf = Buffer.concat([buf, Buffer.from([T_FLOAT]), valueBuf]);
+        const vBuf = new ArrayBuffer(4);
+        new DataView(vBuf).setFloat32(0, v, true);
+        buf = merge(buf, vBuf);
       }
     } else {
       throw new Error("unsupported type");

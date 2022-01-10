@@ -1,6 +1,6 @@
 {
   "name": "uppjs",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Unity PlayerPrefs parser and dumper in JavaScript",
   "main": "lib/index.js",
   "scripts": {

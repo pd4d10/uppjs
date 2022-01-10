@@ -1,13 +1,16 @@
 {
-  "name": "upp",
+  "name": "uppjs",
   "version": "0.0.1",
-  "description": "",
+  "description": "Unity PlayerPrefs parser and dumper in JavaScript",
   "main": "lib/index.js",
   "scripts": {
     "dev": "tsc --watch",
     "build": "tsc",
     "prepare": "npm run build"
   },
+  "files": [
+    "lib"
+  ],
   "keywords": [
     "upp"
   ],
